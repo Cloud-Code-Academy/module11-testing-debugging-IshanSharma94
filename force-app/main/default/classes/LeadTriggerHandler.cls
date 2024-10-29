@@ -30,19 +30,28 @@ public with sharing class LeadTriggerHandler {
 	 * - If the title contains terms like 'assist', 'deputy', or 'jr',
 	 *   change the title to 'Assistant'.
 	 */
+	private static Boolean isTriggerExecuted = false;
 	public static void handleTitleNormalization(List<Lead> leadsToNormalize) {
+		/*if(isTriggerExecuted) {
+            return;
+        }
+        isTriggerExecuted = true;*/
 		for (Lead ld : leadsToNormalize) {
-			if (ld.title == 'vp' || ld.title.contains('v.p.') || ld.title.contains('vice president')) {
+			if (ld.Title == null) {
+				continue;
+			}
+			String titleLower = ld.Title.toLowerCase();
+			if (titleLower == 'vp' || titleLower.contains('v.p.') || titleLower.contains('vice president')) {
 				ld.Title = 'Vice President';
 			} else if (
-				ld.title.contains('mgr') ||
-				ld.title.contains('manage') ||
-				ld.title.contains('head of department')
+				titleLower.contains('mgr') ||
+				titleLower.contains('manage') ||
+				titleLower.contains('head of department')
 			) {
 				ld.Title = 'Manager';
-			} else if (ld.title.contains('exec') || ld.title == 'chief' || ld.title.contains('head')) {
+			} else if (titleLower.contains('exec') || titleLower == 'chief' || titleLower.contains('head')) {
 				ld.Title = 'Executive';
-			} else if (ld.title.contains('assist') || ld.title.contains('deputy') || ld.title == 'jr') {
+			} else if (titleLower.contains('assist') || titleLower.contains('deputy') || titleLower == 'jr') {
 				ld.Title = 'Assistant';
 			}
 		}
@@ -60,23 +69,32 @@ public with sharing class LeadTriggerHandler {
 	 * - If the lead belongs to the 'Technology' industry, increment score by another 10 points.
 	 */
 	public static void handleAutoLeadScoring(List<Lead> leadsToScore) {
+		/*if(isTriggerExecuted) {
+            return;
+        }
+        isTriggerExecuted = true;*/
 		for (Lead ld : leadsToScore) {
-			Integer score = 10;
+			Integer score;
+			if (ld.Lead_Score__c != null) {
+				score = Integer.valueOf(ld.Lead_Score__c);
+			} else {
+				score = 0;
+			}
 
 			// Check and add points based on the specified conditions
-			if (ld.LeadSource == 'Website' && ld.Email != null) {
-				score = 3;
+			if (ld.LeadSource == 'Web' && ld.Email != null) {
+				score += 3;
 			}
 
 			if (ld.Phone != null) {
-				score = 5;
+				score += 5;
 			}
 
 			if (ld.Industry == 'Technology') {
-				score = 10;
+				score += 10;
 			}
 
-			ld.Lead_Score__c = score; // Set the computed score back to the lead
+			ld.Lead_Score__c = Math.min(score, 18); // Set the computed score back to the lead
 		}
 	}
 
@@ -104,10 +122,16 @@ public with sharing class LeadTriggerHandler {
 	 * - One of the errors is map related. Make sure you are using the correct contact map key
 	 */
 	public static void handleLeadAutoConvert(List<Lead> leads) {
+		if(isTriggerExecuted) {
+            return;
+        }
+        isTriggerExecuted = true;
 		// Step 1: Gather all lead emails
         Map<Id,String> leadToEmailMap = new Map<Id,String>();
 		for (Lead lead : leads) {
-			leadToEmailMap.put(lead.Id, lead.Email);
+			if (lead.Email != null && !lead.IsConverted) {
+				leadToEmailMap.put(lead.Id, lead.Email);
+			}
 		}
 
 		// Step 2: Find matching contacts based on email
@@ -142,4 +166,8 @@ public with sharing class LeadTriggerHandler {
 			List<Database.LeadConvertResult> lcrs = Database.convertLead(leadConverts);
 		}
 	}
+
+	public static void resetTriggerState() {
+        isTriggerExecuted = false;
+    }
 }
